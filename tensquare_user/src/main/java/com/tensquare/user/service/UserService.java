@@ -2,7 +2,9 @@ package com.tensquare.user.service;
 
 import com.tensquare.user.dao.UserDao;
 import com.tensquare.user.pojo.User;
+import io.jsonwebtoken.Claims;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -12,11 +14,13 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import util.IdWorker;
+import util.JwtUtil;
 
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
+import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -42,6 +46,12 @@ public class UserService {
 
     @Autowired
     private BCryptPasswordEncoder encoder;
+
+    @Autowired
+    private HttpServletRequest request;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     public User login(String mobile, String password) {
         User userLogin = userDao.findByMobile(mobile);
@@ -124,11 +134,30 @@ public class UserService {
     }
 
     /**
-     * 删除
+     * 删除 必须有admin角色才能删除
+     * 前后端约定：前端请求微服务时需要添加头信息Authorization ,内容为Bearer+空格+token
      *
      * @param id
      */
     public void deleteById(String id) {
+        String header = request.getHeader("Authorization");
+        if (StringUtils.isEmpty(header)) {
+            throw new RuntimeException("权限不足！");
+        }
+        if (!header.startsWith("Bearer ")) {
+            throw new RuntimeException("权限不足！");
+        }
+        // 得到token
+        String token = header.substring(7);
+        try {
+            Claims claims = jwtUtil.parseJWT(token);
+            String roles = (String) claims.get("roles");
+            if (StringUtils.isEmpty(roles) || !"admin".equals(roles)) {
+                throw new RuntimeException("权限不足！");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("权限不足！");
+        }
         userDao.deleteById(id);
     }
 

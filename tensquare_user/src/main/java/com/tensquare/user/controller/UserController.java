@@ -130,7 +130,7 @@ public class UserController {
     }
 
     /**
-     * 删除
+     * 删除 必须有admin角色才能删除
      *
      * @param id
      */
